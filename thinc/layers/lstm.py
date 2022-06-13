@@ -25,7 +25,7 @@ def LSTM(
         msg = "LSTM depth must be at least 1. Maybe we should make this a noop?"
         raise ValueError(msg)
 
-    model: Model[Padded, Padded] = Model(
+    return Model(
         "lstm",
         forward,
         dims={"nO": nO, "nI": nI, "depth": depth, "dirs": 1 + int(bi)},
@@ -33,7 +33,6 @@ def LSTM(
         params={"LSTM": None, "HC0": None},
         init=partial(init, init_W, init_b),
     )
-    return model
 
 
 @registry.layers("PyTorchLSTM.v1")
@@ -46,9 +45,7 @@ def PyTorchLSTM(
 
     if depth == 0:
         return noop()  # type: ignore
-    nH = nO
-    if bi:
-        nH = nO // 2
+    nH = nO // 2 if bi else nO
     pytorch_rnn = PyTorchRNNWrapper(
             torch.nn.LSTM(nI, nH, depth, bidirectional=bi, dropout=dropout)
         )
@@ -80,26 +77,29 @@ def init(
     init_W = partial(init_W, model.ops)
     init_b = partial(init_b, model.ops)
     layer_nI = nI
-    for i in range(depth):
-        for j in range(dirs):
-            # Input-to-gates weights and biases.
-            params.append(init_W((nH, layer_nI)))
-            params.append(init_W((nH, layer_nI)))
-            params.append(init_W((nH, layer_nI)))
-            params.append(init_W((nH, layer_nI)))
-            params.append(init_b((nH,)))
-            params.append(init_b((nH,)))
-            params.append(init_b((nH,)))
-            params.append(init_b((nH,)))
-            # Hidden-to-gates weights and biases
-            params.append(init_W((nH, nH)))
-            params.append(init_W((nH, nH)))
-            params.append(init_W((nH, nH)))
-            params.append(init_W((nH, nH)))
-            params.append(init_b((nH,)))
-            params.append(init_b((nH,)))
-            params.append(init_b((nH,)))
-            params.append(init_b((nH,)))
+    for _ in range(depth):
+        for _ in range(dirs):
+            params.extend(
+                (
+                    init_W((nH, layer_nI)),
+                    init_W((nH, layer_nI)),
+                    init_W((nH, layer_nI)),
+                    init_W((nH, layer_nI)),
+                    init_b((nH,)),
+                    init_b((nH,)),
+                    init_b((nH,)),
+                    init_b((nH,)),
+                    init_W((nH, nH)),
+                    init_W((nH, nH)),
+                    init_W((nH, nH)),
+                    init_W((nH, nH)),
+                    init_b((nH,)),
+                    init_b((nH,)),
+                    init_b((nH,)),
+                    init_b((nH,)),
+                )
+            )
+
         layer_nI = nH * dirs
     model.set_param("LSTM", model.ops.xp.concatenate([p.ravel() for p in params]))
     model.set_param("HC0", zero_init(model.ops, (2, depth, dirs, nH)))

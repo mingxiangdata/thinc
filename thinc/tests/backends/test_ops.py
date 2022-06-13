@@ -84,10 +84,7 @@ def create_pytorch_funcs():
     ]
 
 
-if has_torch:
-    TORCH_FUNCS = create_pytorch_funcs()
-else:
-    TORCH_FUNCS = []
+TORCH_FUNCS = create_pytorch_funcs() if has_torch else []
 
 
 @pytest.mark.parametrize("op", [NumpyOps, CupyOps])
@@ -100,9 +97,9 @@ def test_ops_consistency(op):
         method = getattr(op, attr)
         if hasattr(method, "__call__"):
             sig = inspect.signature(method)
-            params = [p for p in sig.parameters][1:]
+            params = list(sig.parameters)[1:]
             base_sig = inspect.signature(getattr(Ops, attr))
-            base_params = [p for p in base_sig.parameters][1:]
+            base_params = list(base_sig.parameters)[1:]
             assert params == base_params, attr
             defaults = [p.default for p in sig.parameters.values()][1:]
             base_defaults = [p.default for p in base_sig.parameters.values()][1:]
@@ -110,7 +107,7 @@ def test_ops_consistency(op):
             # If args are type annotated, their types should be the same
             annots = [p.annotation for p in sig.parameters.values()][1:]
             base_annots = [p.annotation for p in base_sig.parameters.values()][1:]
-            for i, (p1, p2) in enumerate(zip(annots, base_annots)):
+            for p1, p2 in zip(annots, base_annots):
                 if p1 != inspect.Parameter.empty and p2 != inspect.Parameter.empty:
                     # Need to check string value to handle TypeVars etc.
                     assert str(p1) == str(p2), attr
@@ -664,11 +661,11 @@ def test_gemm_out_used(cpu_ops):
 @settings(max_examples=MAX_EXAMPLES, deadline=None)
 @given(X=strategies.arrays_BI())
 def test_flatten_unflatten_roundtrip(cpu_ops, X):
-    flat = cpu_ops.flatten([x for x in X])
+    flat = cpu_ops.flatten(list(X))
     assert flat.ndim == 1
     unflat = cpu_ops.unflatten(flat, [len(x) for x in X])
     assert_allclose(X, unflat)
-    flat2 = cpu_ops.flatten([x for x in X], pad=1, dtype="f")
+    flat2 = cpu_ops.flatten(list(X), pad=1, dtype="f")
     assert len(flat2) > len(flat)
     unflat2 = cpu_ops.unflatten(flat2, [len(x) for x in X], pad=1)
     assert_allclose(X, unflat2)
@@ -956,19 +953,19 @@ def test_minibatch():
     items = [1, 2, 3, 4, 5, 6]
     batches = ops.minibatch(3, items)
     assert list(batches) == [[1, 2, 3], [4, 5, 6]]
-    batches = ops.minibatch((i for i in (3, 2, 1)), items)
+    batches = ops.minibatch(iter((3, 2, 1)), items)
     assert list(batches) == [[1, 2, 3], [4, 5], [6]]
     batches = list(ops.minibatch(3, numpy.asarray(items)))
     assert isinstance(batches[0], numpy.ndarray)
     assert numpy.array_equal(batches[0], numpy.asarray([1, 2, 3]))
     assert numpy.array_equal(batches[1], numpy.asarray([4, 5, 6]))
-    batches = list(ops.minibatch((i for i in (3, 2, 1)), items, shuffle=True))
+    batches = list(ops.minibatch(iter((3, 2, 1)), items, shuffle=True))
     assert batches != [[1, 2, 3], [4, 5], [6]]
     assert len(batches[0]) == 3
     assert len(batches[1]) == 2
     assert len(batches[2]) == 1
     with pytest.raises(ValueError):
-        ops.minibatch(10, (i for i in range(100)))
+        ops.minibatch(10, iter(range(100)))
     with pytest.raises(ValueError):
         ops.minibatch(10, True)
 
@@ -987,9 +984,9 @@ def test_multibatch():
     batches = list(ops.multibatch(2, [1, 2, 3, 4], [5, 6, 7, 8]))
     assert batches == [[[1, 2], [5, 6]], [[3, 4], [7, 8]]]
     with pytest.raises(ValueError):
-        ops.multibatch(10, (i for i in range(100)), (i for i in range(100)))
+        ops.multibatch(10, iter(range(100)), iter(range(100)))
     with pytest.raises(ValueError):
-        ops.multibatch(10, arr1, (i for i in range(100)), arr2)
+        ops.multibatch(10, arr1, iter(range(100)), arr2)
 
 
 def test_ngrams():

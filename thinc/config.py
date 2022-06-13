@@ -216,7 +216,7 @@ class Config(dict):
                 if part == "*":
                     node = node.setdefault(part, {})
                 elif part not in node:
-                    err_title = f"Error parsing config section. Perhaps a section name is wrong?"
+                    err_title = "Error parsing config section. Perhaps a section name is wrong?"
                     err = [{"loc": parts, "msg": f"Section '{part}' is not defined"}]
                     raise ConfigValidationError(
                         config=self, errors=err, title=err_title
@@ -349,8 +349,8 @@ class Config(dict):
     def _set_overrides(self, config: "ConfigParser", overrides: Dict[str, Any]) -> None:
         """Set overrides in the ConfigParser before config is interpreted."""
         err_title = "Error parsing config overrides"
+        err_msg = "not a section value that can be overwritten"
         for key, value in overrides.items():
-            err_msg = "not a section value that can be overwritten"
             err = [{"loc": key.split("."), "msg": err_msg}]
             if "." not in key:
                 raise ConfigValidationError(errors=err, title=err_title)
@@ -361,12 +361,7 @@ class Config(dict):
             config.set(section, option, try_dump_json(value, overrides))
 
     def _validate_sections(self, config: "ConfigParser") -> None:
-        # If the config defines top-level properties that are not sections (e.g.
-        # if config was constructed from dict), those values would be added as
-        # [DEFAULTS] and included in *every other section*. This is usually not
-        # what we want and it can lead to very confusing results.
-        default_section = config.defaults()
-        if default_section:
+        if default_section := config.defaults():
             err_title = "Found config values without a top-level section"
             err_msg = "not part of a section"
             err = [{"loc": [k], "msg": err_msg} for k in default_section]
@@ -592,8 +587,7 @@ class ConfigValidationError(ValueError):
         self.show_config = show_config
         self.error_types = set()
         for error in self.errors:
-            err_type = error.get("type")
-            if err_type:
+            if err_type := error.get("type"):
                 self.error_types.add(err_type)
         self.text = self._format()
         ValueError.__init__(self, self.text)
@@ -902,9 +896,7 @@ class registry(object):
             else:
                 filled[key] = value
                 # Prevent pydantic from consuming generator if part of a union
-                validation[v_key] = (
-                    value if not isinstance(value, GeneratorType) else []
-                )
+                validation[v_key] = [] if isinstance(value, GeneratorType) else value
                 final[key] = value
         # Now that we've filled in all of the promises, update with defaults
         # from schema, and validate if validation is enabled
@@ -924,8 +916,8 @@ class registry(object):
             if schema.Config.extra in (Extra.forbid, Extra.ignore):
                 fields = schema.__fields__.keys()
                 exclude = [k for k in result.__fields_set__ if k not in fields]
-        exclude_validation = set([ARGS_FIELD_ALIAS, *RESERVED_FIELDS.keys()])
-        validation.update(result.dict(exclude=exclude_validation))
+        exclude_validation = {ARGS_FIELD_ALIAS, *RESERVED_FIELDS.keys()}
+        validation |= result.dict(exclude=exclude_validation)
         filled, final = cls._update_from_parsed(validation, filled, final)
         if exclude:
             filled = {k: v for k, v in filled.items() if k not in exclude}
@@ -969,11 +961,11 @@ class registry(object):
         """Validate overrides against a filled config to make sure there are
         no references to properties that don't exist and weren't used."""
         error_msg = "Invalid override: config value doesn't exist"
-        errors = []
-        for override_key in overrides.keys():
-            if not cls._is_in_config(override_key, filled):
-                errors.append({"msg": error_msg, "loc": [override_key]})
-        if errors:
+        if errors := [
+            {"msg": error_msg, "loc": [override_key]}
+            for override_key in overrides
+            if not cls._is_in_config(override_key, filled)
+        ]:
             raise ConfigValidationError(config=filled, errors=errors)
 
     @classmethod
@@ -1004,7 +996,7 @@ class registry(object):
 
     @classmethod
     def get_constructor(cls, obj: Dict[str, Any]) -> Tuple[str, str]:
-        id_keys = [k for k in obj.keys() if k.startswith("@")]
+        id_keys = [k for k in obj if k.startswith("@")]
         if len(id_keys) != 1:
             err_msg = f"A block can only contain one function registry reference. Got: {id_keys}"
             raise ConfigValidationError(config=obj, errors=[{"msg": err_msg}])
@@ -1039,7 +1031,7 @@ class registry(object):
             return EmptySchema
         func = cls.get(reg_name, func_name)
         # Read the argument annotations and defaults from the function signature
-        id_keys = [k for k in obj.keys() if k.startswith("@")]
+        id_keys = [k for k in obj if k.startswith("@")]
         sig_args: Dict[str, Any] = {id_keys[0]: (str, ...)}
         for param in inspect.signature(func).parameters.values():
             # If no annotation is specified assume it's anything

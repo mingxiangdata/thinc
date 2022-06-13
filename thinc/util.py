@@ -64,10 +64,7 @@ from . import types  # noqa: E402
 
 
 def get_array_module(arr):  # pragma: no cover
-    if is_cupy_array(arr):
-        return cupy
-    else:
-        return numpy
+    return cupy if is_cupy_array(arr) else numpy
 
 
 def gpu_is_available():
@@ -97,49 +94,26 @@ def is_xp_array(obj: Any) -> bool:
     return is_numpy_array(obj) or is_cupy_array(obj)
 
 
-def is_cupy_array(obj: Any) -> bool:  # pragma: no cover
+def is_cupy_array(obj: Any) -> bool:    # pragma: no cover
     """Check whether an object is a cupy array"""
-    if not has_cupy:
-        return False
-    elif isinstance(obj, cupy.ndarray):
-        return True
-    else:
-        return False
+    return bool(has_cupy and isinstance(obj, cupy.ndarray))
 
 
 def is_numpy_array(obj: Any) -> bool:
     """Check whether an object is a numpy array"""
-    if isinstance(obj, numpy.ndarray):
-        return True
-    else:
-        return False
+    return isinstance(obj, numpy.ndarray)
 
 
 def is_torch_array(obj: Any) -> bool:  # pragma: no cover
-    if torch is None:
-        return False
-    elif isinstance(obj, torch.Tensor):
-        return True
-    else:
-        return False
+    return torch is not None and isinstance(obj, torch.Tensor)
 
 
 def is_tensorflow_array(obj: Any) -> bool:  # pragma: no cover
-    if not has_tensorflow:
-        return False
-    elif isinstance(obj, tf.Tensor):
-        return True
-    else:
-        return False
+    return bool(has_tensorflow and isinstance(obj, tf.Tensor))
 
 
 def is_mxnet_array(obj: Any) -> bool:  # pragma: no cover
-    if not has_mxnet:
-        return False
-    elif isinstance(obj, mx.nd.NDArray):
-        return True
-    else:
-        return False
+    return bool(has_mxnet and isinstance(obj, mx.nd.NDArray))
 
 
 def to_numpy(data):  # pragma: no cover
@@ -151,19 +125,17 @@ def to_numpy(data):  # pragma: no cover
         return numpy.array(data)
 
 
-def set_active_gpu(gpu_id: int) -> "cupy.cuda.Device":  # pragma: no cover
+def set_active_gpu(gpu_id: int) -> "cupy.cuda.Device":    # pragma: no cover
     """Set the current GPU device for cupy and torch (if available)."""
     import cupy.cuda.device
 
     device = cupy.cuda.device.Device(gpu_id)
     device.use()
-    try:
+    with contextlib.suppress(ImportError):
         import torch
 
         torch.cuda.set_device(gpu_id)
         torch.set_default_tensor_type("torch.cuda.FloatTensor")
-    except ImportError:
-        pass
     return device
 
 
@@ -178,15 +150,14 @@ def require_cpu() -> bool:  # pragma: no cover
     return True
 
 
-def prefer_gpu(gpu_id: int = 0) -> bool:  # pragma: no cover
+def prefer_gpu(gpu_id: int = 0) -> bool:    # pragma: no cover
     """Use GPU if it's available. Returns True if so, False otherwise."""
     from .backends.cupy_ops import CupyOps
 
     if CupyOps.xp is None:
         return False
-    else:
-        require_gpu(gpu_id=gpu_id)
-        return True
+    require_gpu(gpu_id=gpu_id)
+    return True
 
 
 def require_gpu(gpu_id: int = 0) -> bool:  # pragma: no cover
@@ -230,12 +201,12 @@ def to_categorical(
         if n_classes == 0:
             raise ValueError("n_classes should be at least 1")
         nongold_prob = 0.0
+    elif n_classes <= 1:
+        raise ValueError(
+            "n_classes should be greater than 1 when label smoothing is enabled,"
+            f"but {n_classes} was provided."
+        )
     else:
-        if not n_classes > 1:
-            raise ValueError(
-                "n_classes should be greater than 1 when label smoothing is enabled,"
-                f"but {n_classes} was provided."
-            )
         nongold_prob = label_smoothing / (n_classes - 1)
 
     xp = get_array_module(Y)
@@ -263,19 +234,16 @@ def get_width(
         else:
             return X.shape[dim]
     elif isinstance(X, (list, tuple)):
-        if len(X) == 0:
-            return 0
-        else:
-            return get_width(X[0], dim=dim)
+        return 0 if len(X) == 0 else get_width(X[0], dim=dim)
     else:
         err = "Cannot get width of object: has neither shape nor __getitem__"
         raise ValueError(err)
 
 
-def assert_tensorflow_installed() -> None:  # pragma: no cover
+def assert_tensorflow_installed() -> None:    # pragma: no cover
     """Raise an ImportError if TensorFlow is not installed."""
-    template = "TensorFlow support requires {pkg}: pip install thinc[tensorflow]"
     if not has_tensorflow:
+        template = "TensorFlow support requires {pkg}: pip install thinc[tensorflow]"
         raise ImportError(template.format(pkg="tensorflow>=2.0.0"))
 
 
@@ -332,7 +300,7 @@ def iterate_recursive(is_match: Callable[[Any], bool], obj: Any) -> Any:
         for key, value in obj.items():
             yield from iterate_recursive(is_match, key)
             yield from iterate_recursive(is_match, value)
-    elif isinstance(obj, list) or isinstance(obj, tuple):
+    elif isinstance(obj, (list, tuple)):
         for item in obj:
             yield from iterate_recursive(is_match, item)
 
@@ -361,7 +329,7 @@ def torch2xp(torch_tensor: "torch.Tensor") -> ArrayXd:  # pragma: no cover
 
 def xp2tensorflow(
     xp_tensor: ArrayXd, requires_grad: bool = False, as_variable: bool = False
-) -> "tf.Tensor":  # pragma: no cover
+) -> "tf.Tensor":    # pragma: no cover
     """Convert a numpy or cupy tensor to a TensorFlow Tensor or Variable"""
     assert_tensorflow_installed()
     if hasattr(xp_tensor, "toDlpack"):
@@ -374,7 +342,7 @@ def xp2tensorflow(
         # So we need to control it using the context manager
         with tf.device(tf_tensor.device):
             tf_tensor = tf.Variable(tf_tensor, trainable=requires_grad)
-    if requires_grad is False and as_variable is False:
+    if not requires_grad and not as_variable:
         # tf.stop_gradient() automatically puts in GPU if available.
         # So we need to control it using the context manager
         with tf.device(tf_tensor.device):
@@ -382,7 +350,7 @@ def xp2tensorflow(
     return tf_tensor
 
 
-def tensorflow2xp(tf_tensor: "tf.Tensor") -> ArrayXd:  # pragma: no cover
+def tensorflow2xp(tf_tensor: "tf.Tensor") -> ArrayXd:    # pragma: no cover
     """Convert a Tensorflow tensor to numpy or cupy tensor."""
     assert_tensorflow_installed()
     if tf_tensor.device is not None:
@@ -391,9 +359,8 @@ def tensorflow2xp(tf_tensor: "tf.Tensor") -> ArrayXd:  # pragma: no cover
         device_type = "CPU"
     if device_type == "CPU" or not has_cupy:
         return tf_tensor.numpy()
-    else:
-        dlpack_tensor = tensorflow.experimental.dlpack.to_dlpack(tf_tensor)
-        return cupy.fromDlpack(dlpack_tensor)
+    dlpack_tensor = tensorflow.experimental.dlpack.to_dlpack(tf_tensor)
+    return cupy.fromDlpack(dlpack_tensor)
 
 
 def xp2mxnet(
@@ -525,15 +492,13 @@ def set_torch_tensor_type_for_ops(ops):
     no-op if PyTorch is not available."""
     from .backends.cupy_ops import CupyOps
 
-    try:
+    with contextlib.suppress(ImportError):
         import torch
 
         if CupyOps.xp is not None and isinstance(ops, CupyOps):
             torch.set_default_tensor_type("torch.cuda.FloatTensor")
         else:
             torch.set_default_tensor_type("torch.FloatTensor")
-    except ImportError:
-        pass
 
 
 @dataclass

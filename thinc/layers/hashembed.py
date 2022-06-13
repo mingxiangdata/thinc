@@ -84,8 +84,7 @@ def forward(
         for i in range(keysT.shape[0]):
             model.ops.scatter_add(dE, keysT[i], d_vectors)
         model.inc_grad("E", dE)
-        dX = model.ops.alloc1i(nN)
-        return dX
+        return model.ops.alloc1i(nN)
 
     return output, backprop
 

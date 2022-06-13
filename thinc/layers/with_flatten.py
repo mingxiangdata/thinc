@@ -30,8 +30,7 @@ def forward(
         # I think the input/output types might be wrong here?
         dYflat = model.ops.flatten(dYnest)  # type: ignore
         dXflat = backprop_layer(dYflat)
-        dXnest = layer.ops.xp.split(dXflat, splits, axis=-1)
-        return dXnest
+        return layer.ops.xp.split(dXflat, splits, axis=-1)
 
     return Ynest, backprop
 

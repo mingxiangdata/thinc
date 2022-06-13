@@ -35,14 +35,13 @@ def chain(
     if layers[-1].has_dim("nO") is True:
         dims["nO"] = layers[-1].get_dim("nO")
 
-    model: Model[InT, Any] = Model(
+    return Model(
         ">>".join(layer.name for layer in layers),
         forward,
         init=init,
         dims=dims,
         layers=layers,
     )
-    return model
 
 
 def forward(model: Model[InT, OutT], X: InT, is_train: bool) -> Tuple[OutT, Callable]:
@@ -94,8 +93,5 @@ def init(
         try:
             nO = get_width(curr_input)  # type: ignore
         except ValueError:
-            if model.layers[-1].has_dim("nO"):
-                nO = model.layers[-1].get_dim("nO")
-            else:
-                nO = None  # type: ignore
+            nO = model.layers[-1].get_dim("nO") if model.layers[-1].has_dim("nO") else None
         model.set_dim("nO", nO)

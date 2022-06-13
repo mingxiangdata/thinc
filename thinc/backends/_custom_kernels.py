@@ -28,9 +28,7 @@ def compile_kernels(src):
 
 
 def compile_mmh(src):
-    if cupy is None:
-        return None
-    return cupy.RawKernel(src, "hash_data")
+    return None if cupy is None else cupy.RawKernel(src, "hash_data")
 
 
 PWD = Path(__file__).parent

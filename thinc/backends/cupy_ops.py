@@ -65,9 +65,8 @@ class CupyOps(Ops):
             y = y.T
         if out is None:
             return self.xp.dot(x, y)
-        else:
-            self.xp.dot(x, y, out=out)
-            return out
+        self.xp.dot(x, y, out=out)
+        return out
 
     def asarray(self, data, dtype=None):
         # This is sort of frustrating, but we can't easily otherwise pass
@@ -79,11 +78,9 @@ class CupyOps(Ops):
             # Handles PyTorch Tensors
             pointer = cupy.cuda.MemoryPointer(data.data_ptr())
             shape = data.stride()
-            array = self.xp.ndarray(shape, memptr=pointer, **dtype)
-            return array
+            return self.xp.ndarray(shape, memptr=pointer, **dtype)
         else:
-            result = self.xp.array(data, **dtype)
-            return result
+            return self.xp.array(data, **dtype)
 
     def maxout(self, X):
         return _custom_kernels.maxout(X)
@@ -94,9 +91,8 @@ class CupyOps(Ops):
     def relu(self, X, inplace=False):
         if not inplace:
             return X * (X > 0)
-        else:
-            X *= X > 0
-            return X
+        X *= X > 0
+        return X
 
     def backprop_relu(self, dY, Y, inplace=False):
         if not inplace:

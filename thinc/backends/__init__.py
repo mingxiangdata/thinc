@@ -75,14 +75,10 @@ def use_tensorflow_for_gpu_memory() -> None:  # pragma: no cover
 
 
 def _import_extra_cpu_backends():
-    try:
+    with contextlib.suppress(ImportError):
         from thinc_apple_ops import AppleOps
-    except ImportError:
-        pass
-    try:
+    with contextlib.suppress(ImportError):
         from thinc_bigendian_ops import BigEndianOps
-    except ImportError:
-        pass
 
 
 def get_ops(name: str, **kwargs) -> Ops:
@@ -109,10 +105,7 @@ def get_ops(name: str, **kwargs) -> Ops:
 
 def get_array_ops(arr):
     """Return CupyOps for a cupy array, NumpyOps otherwise."""
-    if is_cupy_array(arr):
-        return CupyOps()
-    else:
-        return NumpyOps()
+    return CupyOps() if is_cupy_array(arr) else NumpyOps()
 
 
 @contextlib.contextmanager

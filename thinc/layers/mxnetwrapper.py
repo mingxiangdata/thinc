@@ -63,8 +63,7 @@ def forward(model: Model, X: Any, is_train: bool) -> Tuple[Any, Callable]:
     def backprop(dY: Any) -> Any:
         dYmxnet = get_dYmxnet(dY)
         dXmxnet = mxnet_backprop(dYmxnet)
-        dX = get_dX(dXmxnet)
-        return dX
+        return get_dX(dXmxnet)
 
     return Y, backprop
 

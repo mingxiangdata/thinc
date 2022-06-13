@@ -64,8 +64,7 @@ def forward(
         d_vectors = model.ops.alloc2f(*vectors.shape)
         model.ops.scatter_add(d_vectors, ids, d_output)
         model.inc_grad("E", d_vectors)
-        dX = model.ops.alloc1i(nN)
-        return dX
+        return model.ops.alloc1i(nN)
 
     return output, backprop
 

@@ -137,8 +137,7 @@ def forward(model: Model, X: Any, is_train: bool) -> Tuple[Any, Callable]:
     def backprop(dY: Any) -> Any:
         dYtorch = get_dYtorch(dY)
         dXtorch = torch_backprop(dYtorch)
-        dX = get_dX(dXtorch)
-        return dX
+        return get_dX(dXtorch)
 
     return Y, backprop
 

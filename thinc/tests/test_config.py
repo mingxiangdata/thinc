@@ -113,20 +113,16 @@ class ComplexSchema(BaseModel):
 
 @my_registry.cats.register("catsie.v1")
 def catsie_v1(evil: StrictBool, cute: bool = True) -> str:
-    if evil:
-        return "scratch!"
-    else:
-        return "meow"
+    return "scratch!" if evil else "meow"
 
 
 @my_registry.cats.register("catsie.v2")
 def catsie_v2(evil: StrictBool, cute: bool = True, cute_level: int = 1) -> str:
     if evil:
         return "scratch!"
-    else:
-        if cute_level > 2:
-            return "meow <3"
-        return "meow"
+    if cute_level > 2:
+        return "meow <3"
+    return "meow"
 
 
 good_catsie = {"@cats": "catsie.v1", "evil": False, "cute": True}
@@ -540,7 +536,6 @@ def test_validation_bad_function():
     @my_registry.optimizers("bad.v1")
     def bad() -> None:
         raise ValueError("This is an error in the function")
-        return None
 
     @my_registry.optimizers("good.v1")
     def good() -> None:
@@ -1291,6 +1286,7 @@ def test_config_fill_extra_fields():
 
 
 def test_config_validation_error_custom():
+
     class Schema(BaseModel):
         hello: int
         world: int
@@ -1307,7 +1303,7 @@ def test_config_validation_error_custom():
     assert e1.errors[0]["loc"] == ("world",)
     assert e1.errors[0]["msg"] == "value is not a valid integer"
     assert e1.errors[0]["type"] == "type_error.integer"
-    assert e1.error_types == set(["type_error.integer"])
+    assert e1.error_types == {"type_error.integer"}
     # Create a new error with overrides
     title = "Custom error"
     desc = "Some error description here"

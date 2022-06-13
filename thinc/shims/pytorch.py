@@ -4,14 +4,11 @@ from io import BytesIO
 import itertools
 import srsly
 
-try:
+with contextlib.suppress(ImportError):
     import torch.autograd
     from torch.cuda import amp
     import torch.optim
     import torch
-except ImportError:  # pragma: no cover
-    pass
-
 from ..util import torch2xp, xp2torch, convert_recursive, iterate_recursive
 from ..util import has_torch_amp
 from ..backends import get_current_ops, context_pools, CupyOps
@@ -104,17 +101,16 @@ class PyTorchShim(Shim):
             torch.autograd.backward(*grads.args, **grads.kwargs)
 
             # Unscale weights and check for overflows during backprop.
-            grad_tensors = []
-            for torch_data in itertools.chain(
-                self._model.parameters(),
-                iterate_recursive(lambda x: hasattr(x, "grad"), inputs),
-            ):
-                if torch_data.grad is not None:
-                    grad_tensors.append(torch_data.grad)
-            found_inf = self._grad_scaler.unscale(grad_tensors)
+            grad_tensors = [
+                torch_data.grad
+                for torch_data in itertools.chain(
+                    self._model.parameters(),
+                    iterate_recursive(lambda x: hasattr(x, "grad"), inputs),
+                )
+                if torch_data.grad is not None
+            ]
 
-            # If there was an over/underflow, return zeroed-out gradients.
-            if found_inf:
+            if found_inf := self._grad_scaler.unscale(grad_tensors):
                 grad_get = lambda x: x.grad.zero_() if x.grad is not None else x.grad
             else:
                 grad_get = lambda x: x.grad
@@ -142,11 +138,11 @@ class PyTorchShim(Shim):
     @contextlib.contextmanager
     def use_params(self, params):
         key_prefix = f"pytorch_{self.id}_"
-        state_dict = {}
-        for k, v in params.items():
-            if hasattr(k, "startswith") and k.startswith(key_prefix):
-                state_dict[k.replace(key_prefix, "")] = xp2torch(v)
-        if state_dict:
+        if state_dict := {
+            k.replace(key_prefix, ""): xp2torch(v)
+            for k, v in params.items()
+            if hasattr(k, "startswith") and k.startswith(key_prefix)
+        }:
             backup = {k: v.clone() for k, v in self._model.state_dict().items()}
             self._model.load_state_dict(state_dict)
             yield

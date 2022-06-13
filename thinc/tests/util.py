@@ -95,7 +95,7 @@ def check_input_converters(Y, backprop, data, n_args, kwargs_keys, type_):
     assert all(isinstance(arg, type_) for arg in Y.args)
     assert all(isinstance(arg, type_) for arg in Y.kwargs.values())
     dX = backprop(Y)
-    input_type = type(data) if not isinstance(data, list) else tuple
+    input_type = tuple if isinstance(data, list) else type(data)
     assert isinstance(dX, input_type)
     if isinstance(data, dict):
         assert list(dX.keys()) == kwargs_keys

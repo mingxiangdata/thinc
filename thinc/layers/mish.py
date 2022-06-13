@@ -52,8 +52,7 @@ def forward(model: Model[InT, OutT], X: InT, is_train: bool) -> Tuple[OutT, Call
         dY_pre_mish = model.ops.backprop_mish(dY, Y_pre_mish)
         model.inc_grad("W", model.ops.gemm(dY_pre_mish, X, trans1=True))
         model.inc_grad("b", dY_pre_mish.sum(axis=0))
-        dX = model.ops.gemm(dY_pre_mish, W)
-        return dX
+        return model.ops.gemm(dY_pre_mish, W)
 
     return Y, backprop
 

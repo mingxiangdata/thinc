@@ -36,8 +36,7 @@ def create_wrapped_pytorch(width, dropout, nI, nO):
             x = F.relu(x)
             x = self.dropout2(x)
             x = self.fc2(x)
-            output = F.log_softmax(x, dim=1)
-            return output
+            return F.log_softmax(x, dim=1)
 
     return PyTorchWrapper(PyTorchModel(width, nO, nI, dropout))
 
@@ -79,7 +78,7 @@ def test_small_end_to_end(width, nb_epoch, min_score, create_model, mnist):
     optimizer = Adam(0.001)
     losses = []
     scores = []
-    for i in range(nb_epoch):
+    for _ in range(nb_epoch):
         for X, Y in model.ops.multibatch(batch_size, train_X, train_Y, shuffle=True):
             Yh, backprop = model.begin_update(X)
             backprop(Yh - Y)
@@ -96,4 +95,4 @@ def test_small_end_to_end(width, nb_epoch, min_score, create_model, mnist):
     assert losses[-1] < losses[0], losses
     if scores[0] < 1.0:
         assert scores[-1] > scores[0], scores
-    assert any([score > min_score for score in scores]), scores
+    assert any(score > min_score for score in scores), scores
